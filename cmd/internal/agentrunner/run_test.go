@@ -700,3 +700,29 @@ func TestResolveSessionDirectoryRejectsMissingStateLocation(t *testing.T) {
 		})
 	}
 }
+
+func TestOpenDatetimeLogIsolatesSameSecondRuns(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)
+
+	first, err := openDatetimeLog(dir, now)
+	if err != nil {
+		t.Fatalf("open first log: %v", err)
+	}
+	first.Close()
+
+	second, err := openDatetimeLog(dir, now)
+	if err != nil {
+		t.Fatalf("open second log: %v", err)
+	}
+	defer second.Close()
+
+	firstPath := filepath.Join(dir, now.UTC().Format("20060102-150405")+".jsonl")
+	secondPath := firstPath[:len(firstPath)-len(".jsonl")] + "-1.jsonl"
+	if got := second.Name(); got != secondPath {
+		t.Fatalf("second log path = %q, want %q", got, secondPath)
+	}
+	if _, err := os.Stat(secondPath); err != nil {
+		t.Fatalf("second log file missing: %v", err)
+	}
+}

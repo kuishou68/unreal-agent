@@ -523,12 +523,24 @@ func openDatetimeLog(directory string, now time.Time) (*os.File, error) {
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("create log directory: %w", err)
 	}
-	path := filepath.Join(directory, now.UTC().Format("20060102-150405")+".jsonl")
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("open session log: %w", err)
+	// Two runs started in the same second would otherwise append to the
+	// same file and mix their JSONL records (issue: shared log directory).
+	// Create exclusively and fall through to a numbered suffix instead.
+	base := now.UTC().Format("20060102-150405")
+	for seq := 0; ; seq++ {
+		name := base + ".jsonl"
+		if seq > 0 {
+			name = fmt.Sprintf("%s-%d.jsonl", base, seq)
+		}
+		path := filepath.Join(directory, name)
+		file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err == nil {
+			return file, nil
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return nil, fmt.Errorf("open session log: %w", err)
+		}
 	}
-	return file, nil
 }
 
 func loadDotEnv(path string) (*environmentScope, error) {
