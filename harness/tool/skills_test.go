@@ -58,6 +58,27 @@ Beta instructions.
 	}
 }
 
+func TestParseSkillFrontmatterUsesYAMLValues(t *testing.T) {
+	for _, tc := range []struct {
+		name, contents, wantName, wantDescription string
+	}{
+		{"quoted", "---\nname: \"review\"\ndescription: 'Review code.'\n---\n", "review", "Review code."},
+		{"folded", "---\nname: review\ndescription: >-\n  Review code\n  carefully.\n---\n", "review", "Review code carefully."},
+		{"comment", "---\nname: review # stable name\ndescription: Review code.\n---\n", "review", "Review code."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseSkillFrontmatter([]byte(tc.contents))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := skillFrontmatter{Name: tc.wantName, Description: tc.wantDescription}
+			if got != want {
+				t.Fatalf("frontmatter = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
 func TestDiscoverSkillsAllowsMissingDirectory(t *testing.T) {
 	skills, skillErrors := DiscoverSkills(filepath.Join(t.TempDir(), "missing"))
 	if len(skillErrors) != 0 {
